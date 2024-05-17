@@ -1,5 +1,15 @@
 """_summary_
 
+$ torchrun \
+    --nproc_per_node=2 \
+    --master-port 30053 \
+    main_dino.py \
+        --arch resnet50 \
+        --sa_method stain_vector \
+        --data_path /home/heon/heon_vast/datasets/colon/tiles \
+        --output_dir ./results/resnet50_stain_vector \
+        --batch_size_per_gpu 128
+
 python3 main_dino.py \
     --arch vit_tiny \
     --data_path /home/heon/heon_vast/inhouse/colon/leica \
@@ -803,8 +813,12 @@ def aug_transform(sa_method: Literal["randstainna", "stain_vector"]) -> callable
     elif sa_method == "stain_vector":
         from seestaina.augmentation import StainVectorAugmentator
 
-        augmentator = StainVectorAugmentator()
-        return augmentator.image_augmentation_with_stain_vector
+        def aug_fun(x):
+            augmentator = StainVectorAugmentator()
+            x = augmentator.image_augmentation_with_stain_vector(x)
+            return np.array(x)
+
+        return aug_fun
 
     raise NotImplementedError(f"Passed{sa_method} not implemented")
 
@@ -817,7 +831,7 @@ if __name__ == "__main__":
     if args.sa_method is None:
         stain_aug = None
     elif args.sa_method is not None:
-        stain_aug: callable = aug_transform(args.sa)
-        args.sa = stain_aug
+        stain_aug: callable = aug_transform(args.sa_method)
 
+    setattr(args, "sa", stain_aug)
     train_dino(args)
